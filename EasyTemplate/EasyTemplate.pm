@@ -10,11 +10,11 @@ TemplateEasy
 
 =head2 VERSION
 
-Version 0.94 26/04/2001 12:21
+Version 0.95 26/04/2001 14:59
 
 =cut
 
-our $VERSION = 0.94;
+our $VERSION = 0.95;
 
 =head1 DESCRIPTION
 
@@ -293,11 +293,14 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 		elsif ( @$token[0] eq 'T' and $htmltitle>0 ){
 			if ($method eq 'collect'){
 				$self->{HTML_TITLE} .= @$token[1];
-			} elsif ($method eq 'fill' and $self->{HTML_TITLE} eq '') {
-				$self->{FULL_TEMPLATE} .= @$token[1];					# Retain the text from HTML TITLE element
-			} elsif ($method eq 'fill' and $self->{HTML_TITLE} ne '') {
-				$self->{FULL_TEMPLATE} .= $self->{HTML_TITLE} 			# Substitute our text
+			} elsif ($method eq 'fill' and not exists $self->{HTML_TITLE}) {
+				$self->{FULL_TEMPLATE} .= @$token[1];						# Retain the text from HTML TITLE element
+			} elsif ($method eq 'fill' and exists $self->{HTML_TITLE} and $self->{HTML_TITLE} ne '') {
+				$self->{FULL_TEMPLATE} .= $self->{HTML_TITLE} 				# Substitute our text
 					if $self->{FULL_TEMPLATE} !~ /$self->{HTML_TITLE}$/;	# if not already done so
+			} elsif ($method eq 'fill' and exists $usrvals{HTML_TITLE}) {
+				$self->{FULL_TEMPLATE} .= $usrvals{HTML_TITLE} 				# Substitute our text
+					if $self->{FULL_TEMPLATE} !~ /$usrvals{HTML_TITLE}$/;	# if not already done so
 			}
 		}
 

@@ -1,5 +1,8 @@
 Revision history for Perl extension HTML::EasyTemplate.
 
+0.95  Thu Apr 26 2001 15:51
+    - change HTML TITLE feature
+
 0.94  Thu Apr 26 2001
     - updates to methods; fix rendering
 
