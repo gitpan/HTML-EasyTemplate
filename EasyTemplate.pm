@@ -16,7 +16,7 @@ Version 0.98 15/05/2001
 
 =cut
 
-our $VERSION = 0.98;
+our $VERSION = 0.981;
 
 =head1 SYNOPSIS
 
