@@ -1,10 +1,11 @@
 #! perl -w
 #------------------------------------------------------------------------------	This line doesn't wrap (tab is always 4	---------------
+
 package HTML::EasyTemplate;
 use HTML::TokeParser;
 use Cwd;
 use strict;
-use warnings;
+# no warnings;
 
 =head1 NAME
 
@@ -16,7 +17,7 @@ Version 0.98 15/05/2001
 
 =cut
 
-our $VERSION = 0.981;
+our $VERSION = 0.983;	# Added support for comments
 
 =head1 SYNOPSIS
 
@@ -203,31 +204,24 @@ DEVELOPMENT NOTE: it may be an idea to bear in mind temporary renaming of files:
 sub save { my ($self, $save_dir, $file_name) = (shift,shift,shift);
 	warn "Method EasyTemplate::save requires at least a directory or filepath as a parameter."
 		and return undef unless defined $save_dir;
-	warn "Method EasyTemplate::save found nothing at <$save_dir>."
-		and return undef unless -e $save_dir;
-	warn "Method EasyTemplate::save received two file paths!"
-		and return undef if defined $file_name and -f $save_dir;
-
 	local *OUTPUT;
 
-	if (defined $file_name eq "" and not -f $save_dir){
+	if (-d $save_dir and not defined $file_name ){
 		$file_name = time.".html";
 		$self->set_article_path($save_dir."/".$file_name);
 	} elsif (-f $save_dir){
 		$self->set_article_path($save_dir);
-	} else {
+	} elsif (-d $save_dir and defined $file_name) {
 		$self->set_article_path($save_dir.'/'.$file_name);
+	} else {
+		die "Wrong arguments to &save: $self, $save_dir, $file_name";
 	}
 
 	open OUTPUT, ">$self->{ARTICLE_PATH}" or warn "EasyTemplate::save could not open $self->{ARTICLE_PATH} for writing:\nperl said '$!'" and return undef;
 		print OUTPUT $self->{FULL_TEMPLATE};
 	close OUTPUT;
 
-	if (defined $file_name){
-		$self -> set_article_url( "$save_dir/$file_name")
-	} else {
-		$self -> set_article_url( "$save_dir")
-	}
+	$self -> set_article_url;
 	return $self->{ARTICLE_PATH};
 }
 
@@ -375,6 +369,9 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			my $literal="";
 			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
 			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
+			elsif (@$token[0] eq 'C') { $literal = '<!--'.@$token[1].'-->'; }
+			elsif (@$token[0] eq 'D') { $literal = '<!'.@$token[1].'>'; }
+			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'?>'; }
 			else                      { $literal = @$token[1]; }
 			if (defined $tbblock){
 				$tbblock .= $literal;	# Complete the template
@@ -388,13 +385,15 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			my $literal = "";
 			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
 			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
-			else                      { $literal = @$token[1]; }
+			elsif (@$token[0] eq 'C') { $literal = '<!--'.@$token[1].'-->'; }
+			elsif (@$token[0] eq 'D') { $literal = '<!'.@$token[1].'>'; }
+			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'?>'; }
 			$self->{TEMPLATEITEMS}->{$name} .= $literal;# Store the template's element name and default value
 		}# End if
 	} # Whend
 
-	die "Fatal error in template: TEMPLATEITEM '$name' not closed " if defined $name and $name ne '';
-	die "Fatal error in template: TEMPLATEBLOCK '$tbname' not closed " if defined $tbopen;
+	warn  "Fatal error in template: TEMPLATEITEM '$name' not closed " and return undef if defined $name and $name ne '';
+	warn "Fatal error in template: TEMPLATEBLOCK '$tbname' not closed " and return undef if defined $tbopen;
 
 	# Second parse, this time of the FULL_TEMPLATE created above,  to insert TEMPLATEBLOCKs %tbblocks
 	if ($method eq 'fill'){
@@ -430,7 +429,9 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			my $literal="";
 			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
 			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
-			else                      { $literal = @$token[1]; }
+			elsif (@$token[0] eq 'C') { $literal = '<!--'.@$token[1].'-->'; }
+			elsif (@$token[0] eq 'D') { $literal = '<!'.@$token[1].'>'; }
+			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'?>'; }
 
 			# Complete the template
 			$tempdoc .= $literal if not (@$token[1] =~ /^template(item|block)$/ and exists $self->{NO_TAGS});
@@ -491,6 +492,7 @@ sub set_article_url { my ($self, $path) = (shift,shift);
 	}
 	return $self->{ARTICLE_URL};
 }
+
 
 
 1; # Return a true value for 'use'

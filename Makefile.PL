@@ -4,5 +4,5 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     'NAME'		=> 'HTML::EasyTemplate',
     'VERSION_FROM'	=> 'EasyTemplate.pm', # finds $VERSION
-    'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
+    'PREREQ_PM'		=> {HTML::TokeParser=>0.1}, # e.g., Module::Name => 1.1
 );
