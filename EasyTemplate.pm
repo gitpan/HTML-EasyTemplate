@@ -3,10 +3,11 @@ package HTML::EasyTemplate;
 use HTML::TokeParser;
 use Cwd;
 use strict;
+use warnings;
 
-=head1 TITLE
+=head1 NAME
 
-TemplateEasy
+EasyTemplate - simple tag-based HTML templating.
 
 =head2 VERSION
 
