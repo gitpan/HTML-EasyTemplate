@@ -11,7 +11,7 @@ TemplateEasy
 
 =head2 VERSION
 
-Version 0.9
+Version 0.91
 
 =cut
 
@@ -147,20 +147,18 @@ temporary renaming of files: as C<File::Copy> says:
 =cut
 
 sub save { my ($self, $save_dir, $file_name) = (shift,shift,shift);
-	print "Template::save requires a directory or filename to save as its second arg"
+	print "Template::save requires a directory to in save as its second parameter, at least use '.'."
 		and die if not defined $save_dir;
-	print  "Specified dir <$save_dir> does not exist"
+	print  "Specified dir <$save_dir> does not exist."
 		and die if not -e $save_dir;
 
 	local *OUTPUT;
-
-#	chdir $save_dir or die "Couldn't cd to $save_dir"; ;# if not $file_name;
 
 	if ($file_name eq ""){
 		$file_name = time.".html";
 		$self->set_article_path($save_dir."/".$file_name);
 	} else {
-		$self->set_article_path($file_name);
+		$self->set_article_path($save_dir.'/'.$file_name);
 	}
 
 	open OUTPUT, ">$self->{ARTICLE_PATH}" or print "Template::save could not open $self->{ARTICLE_PATH} for writing." and die $!;
