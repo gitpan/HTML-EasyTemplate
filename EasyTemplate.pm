@@ -2,22 +2,29 @@
 #------------------------------------------------------------------------------	This line doesn't wrap (tab is always 4	---------------
 
 package HTML::EasyTemplate;
-use HTML::TokeParser;
+use HTML::TokeParser 2.19;
 use Cwd;
 use strict;
-# no warnings;
+
+# use Data::Dumper;
 
 =head1 NAME
 
 EasyTemplate - tag-based HTML templates, guestbooks and 'latest news' pages.
 
+=cut
+
+our $VERSION = 0.985;	# Changed save method
+
 =head2 VERSION
 
-Version 0.98 15/05/2001
+Version 0.985 (23/07/2001) cleans up API: constructor method
+	 now takes SOURCE_PATH explicitly and not as arg outside of hash.
+Version 0.984 (15/06/2001) adds option to hide template items.
 
 =cut
 
-our $VERSION = 0.983;	# Added support for comments
+
 
 =head1 SYNOPSIS
 
@@ -25,38 +32,47 @@ Example tempalte:
 
 	<HTML><HEAD><TITLE>Latest News</TITLE></HEAD><BODY>
 	<H1>Latest News</H1>
-	<TEMPLATEBLOCK valign="above">
-		<H2><TEMPLATEITEM id="1.Headline"></TEMPLATEITEM></H2>
-		<DIV><TEMPLATEITEM id="2.Story"></TEMPLATEITEM></DIV>
-	</TEMPLATEBLOCK>
+	<!--<TEMPLATEBLOCK valign="above">
+		<H2><TEMPLATEITEM id="1.Headline">This is in a non-displayed template</TEMPLATEITEM></H2>
+		<DIV><TEMPLATEITEM id="2.Story">This will not be shown, within templateitem tags, will be destroyed</TEMPLATEITEM></DIV>
+	</TEMPLATEBLOCK>-->
 	</BODY></HTML>
+
 
 Example of filling and collecting:
 
 	use HTML::EasyTemplate;
 
-	my $TEMPLATE = new HTML::EasyTemplate("E:/www/leegoddard_com/latest.html",
-		{	NO_TAGS => 1,
+	my $TEMPLATE = new HTML::EasyTemplate(
+		{	SOURCE_PATH => "test_template.html",
+			NO_TAGS => 1,
 			ARTICLE_ROOT => 'E:/www/leegoddard_com',
 			URL_ROOT => 'http://localhost/leegoddard_com',
 		});
 
-	# Collect eh values
+	# Collect the values
 	$TEMPLATE -> process('collect');
 
 	# Do something with them
 	my %template_items = %{$TEMPLATE->{TEMPLATEITEMS}};
-	foreach (keys %template_items){ warn "ID=$_\nCONTENT=$template_items{$_}\n\n" }
-	warn "Template doc's title was: ",$TEMPLATE->title,"\n";
 
-		# Make new values, for example:
-		$template_items{'1.Headline'} 	= "News in paper";
-		$template_items{'2.Story'}	= "Reports are coming in of a newspaper carrying a news item.";
+	warn "** Template content was:\n";
+	foreach (keys %template_items){ warn "ID=$_\nCONTENT=$template_items{$_}\n\n" }
+	warn "** Template doc's title was: ",$TEMPLATE->title,"\n\n";
+
+	# Make new values, for example:
+	$template_items{'1.Headline'} 	= "News in paper";
+	$template_items{'2.Story'}	= "Reports are coming in on ". scalar(localtime)." of a newspaper carrying a news item.";
+
+	warn "\n** New template contents will be:\n";
+	foreach (keys %template_items) {
+		warn "$_ -> $template_items{$_}\n";
+	}
 
 	# Add them to the page
 	$TEMPLATE -> process('fill', \%template_items );
 	$TEMPLATE -> save;
-	warn "Specified no filename, so new document saved as (",$TEMPLATE->{ARTICLE_PATH},")\n";
+	warn "\n** Document saved as (",$TEMPLATE->{ARTICLE_PATH},")\n";
 
 	exit;
 
@@ -71,11 +87,13 @@ See also the I<EXAMPLE: NEWS PAGE / GUESTBOOK>, below.
 
 =head1 DESCRIPTION
 
-This package impliments the manipulation of templates: loading, saving, filling, and so on.  It makes it easy to produce guestbooks, 'latest news' pages and simple websites.
+This package impliments the most easy possible  manipulation of templates: loading, saving, filling, and so on.  It makes it easy to produce guestbooks, 'latest news' pages and simple websites.
 
-A template is an HTML file (or other  file parsable by C<HTML::TokeParser>) that contains C<TEMPLATEITEM> elements with one attribute, C<name> or C<id>, used to identitfy and/or order editable regions in the template.
+A template is an area of an HTML page that this module can fill with data.
 
-A template may also include C<TEMPLATEBLOCK> elements.  Any elements, including C<TEMPLATEITEM>s, within a C<TEMPLATEBLOCK> element  will be replicated either above or below the existing C<TEMPLATEBLOCK>, depending on the value of the element's C<valign> attribute, which may be either C<above> or C<below>.
+A template is a <!--commented out--> area of an HTML file (or other  file parsable by C<HTML::TokeParser>) that contains C<TEMPLATEBLOCK> elements with C<TEMPLATEITEM> elements within. Any elements, including C<TEMPLATEITEM>s, within a C<TEMPLATEBLOCK> element  will be replicated either above or below the existing C<TEMPLATEBLOCK>, depending on the value of the element's C<valign> attribute, which may be either C<above> or C<below>.
+
+See the enclosed examples for further information.
 
 =head1 TEMPLATE ELEMENT REFERENCE
 
@@ -96,9 +114,14 @@ A template may also include C<TEMPLATEBLOCK> elements.  Any elements, including 
 
 =head2 CONSTRUCTOR METHOD (new)
 
-Besides a references to the new object's class, the constructor requires a scalar representing the path at which the source of the template is to be found, plus a hash or reference to a hash that contains paramters of name/value pairs as follows:
+Besides a references to the new object's class, the constructor requires
+a hash or reference to a hash that contains paramters of name/value pairs as follows:
 
 =over 4
+
+=item C<SOURCE_PATH>
+
+scalar representing the path at which the source of the template is to be found,
 
 =item C<ARTICLE_ROOT>
 
@@ -116,11 +139,15 @@ If this is not set by the user, it is sought in the C<main::> namespace.
 
 =item C<NO_TAGS>
 
-If this item evaluates to true, the template will not contain C<TEMPLATEITEM> tags when saved.  Defaults is to leave them in, so that the page may again function as an C<EasyTemplate>.
+This is really a legacy attribute.  Defaulting to true, if the user sets it to evaluate to false, new template items will be surrounded by the C<TEMPLATEITEM> and C<TEMPLATEBLOCK> elements when saved. See also the next item.
+
+=item C<ADD_TAGS>
+
+If present, will surround output with respective C<TEMPLATEITEM> and C<TEMPLATEBLOCK> elements.  See also previous item.
 
 =item C<HTML_TITLE>
 
-See the C<title> method below.
+Contains the HTML C<TITLE> element for reading/setting - see the C<title> method below.
 
 =item C<FULL_TEMPLATE>
 
@@ -130,10 +157,9 @@ This slot will contain the filled template once the C<process/fill> method has b
 
 =cut
 
-sub new { my ($class, $filepath) = (shift,shift);
+sub new { my ($class) = (shift);
 	# Lets HTML::TokeParser handle the input file/string checks:-
 	warn "HTML::EasyTemplate::new called without a class ref?" and return undef unless defined $class;
-	warn "Useage: new $class (\$path_to_template)" and return undef if not defined $filepath;
 	my %args;
 	my $self = {};
 	bless $self,$class;
@@ -143,18 +169,24 @@ sub new { my ($class, $filepath) = (shift,shift);
 	elsif (not ref $_[0]){		%args = @_ }
 
 	# Instance variables
-	$self->{SOURCE_PATH}	= $filepath;	# Path to the template to load
 	$self->{ARTICLE_PATH}	= '';			# Path to the article created from the template instance
 	$self->{ARTICLE_URL}	= '';			# URL  of the article created from the template instance
 	$self->{FULL_TEMPLATE}	= '';			# Contents of template once replacements have been made
 	$self->{TEMPLATEITEMS}	= {};			# Hash of template-item names and contents;
+	$self->{NO_TAGS}		= 1;			# Do not surround new content with TEMPLATE.* tags
 
 	# Set/overwrite public slots with user's values
 	foreach (keys %args) {	$self->{uc $_} = $args{$_} }
 
+	delete $self->{NO_TAGS} if exists $self->{ADD_TAGS};
+
 	# Set these if not set by user
 	$self->{ARTICLE_ROOT}	= $main::ARTICLE_ROOT if defined $main::ARTICLE_ROOT and not exists $self->{ARTICLE_ROOT};
 	$self->{URL_ROOT}		= $main::URL_ROOT if defined $main::URL_ROOT and not exists $self->{URL_ROOT};
+
+	die "No filepath for template"
+		if not exists  $self->{SOURCE_PATH}
+		or not defined $self->{SOURCE_PATH};
 
 	return $self;
 }
@@ -175,25 +207,29 @@ sub title { defined $_[1] ? return $_[0]->{HTML_TITLE} = $_[1] : return $_[0]->{
 
 Save the file to the supplied path, or in the supplied directory with a new name.
 
-Accepts:
+You may supply:
 
 =over 4
 
-=item 1.
+=item *
 
-directory in which to save article in, or full path to save article as;
+just the full path to a file
 
-=item 2.
+=item *
 
-optionally a filename to save as.
+both a directory and a filename
+
+=item *
+
+just a directory, with the filename being composed by the routine out of the time and an C<.html> extension.
+
+=item *
+
+supply no arguments, and the documents original source path is used - ie. the source document is updated (cf. C<$self->{SOURCE_PATH}>.
 
 =back
 
-If no filename is suppiled in either argument, one is created without significance.
-
-Returns: file path of saved file.
-
-This method incidently returns a reset C<$self>'s C<ARTICLE_PATH>;
+Returns the path to the saved file, incidently a reset C<$self>'s C<ARTICLE_PATH>;
 
 DEVELOPMENT NOTE: it may be an idea to bear in mind temporary renaming of files: as C<File::Copy> says:
 
@@ -203,18 +239,16 @@ DEVELOPMENT NOTE: it may be an idea to bear in mind temporary renaming of files:
 
 sub save { my ($self, $save_dir, $file_name) = (shift,shift,shift);
 	warn "Method EasyTemplate::save requires at least a directory or filepath as a parameter."
-		and return undef unless defined $save_dir;
+		and return undef unless defined $save_dir or defined $self->{SOURCE_PATH};
 	local *OUTPUT;
 
 	if (-d $save_dir and not defined $file_name ){
 		$file_name = time.".html";
 		$self->set_article_path($save_dir."/".$file_name);
-	} elsif (-f $save_dir){
-		$self->set_article_path($save_dir);
 	} elsif (-d $save_dir and defined $file_name) {
 		$self->set_article_path($save_dir.'/'.$file_name);
 	} else {
-		die "Wrong arguments to &save: $self, $save_dir, $file_name";
+		$self->set_article_path($save_dir);
 	}
 
 	open OUTPUT, ">$self->{ARTICLE_PATH}" or warn "EasyTemplate::save could not open $self->{ARTICLE_PATH} for writing:\nperl said '$!'" and return undef;
@@ -268,20 +302,31 @@ Returns either C<$self->{FULL_TEMPLATE}> or C<$self->{TEMPLATEITEMS}>, depending
 sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 	warn "Template values not a hash reference!\n Usage: \$self->process(\$method,\$ref_to_hash)" and return undef if defined $usrvals and ref $usrvals ne 'HASH';
 	warn "No 'method' supplied!\n Usage: \$self->process(\$method,\$ref_to_hash)." and return undef if not defined $method;
-	my $p = HTML::TokeParser->new( $self->{SOURCE_PATH} ) or warn "Can't create TokeParser object from $self->{SOURCE_PATH}!\n $!" and return undef;
-	my %usrvals; %usrvals = %$usrvals if defined $usrvals;
-	my ($tbname,$name) = "";	# The 'name' or 'id'  attributes from TEMPLATEITEM/TEMPLATEBLOCK elements, cf. $usrvals{$name}
+	my ($tbname,$name) = "";# The 'name' or 'id'  attributes from TEMPLATEITEM/TEMPLATEBLOCK elements, cf. $usrvals{$name}
 	my $substitute = 0;		# Flag set when ignoring elements nested within a TEMPLATEITEM element
 	my $tbopen;				# Flag
 	my $htmltitle = 0;		# Flags when inside HTML TITLE element
 	my $tbblock;			# Store of tokens in a TEMPLATEBLOCK element
 	my $tbvalign;			# The veritcal alignment of TEMPLATEBLOCK - above|below.
 	my %tbblocks;			# Store blocks for insertion in second parse
+	my %usrvals; %usrvals = %$usrvals if defined $usrvals;
+	if (not open HTML,$self->{SOURCE_PATH} ){
+		warn "Couldn't open file <$self->{SOURCE_PATH}> to create TokeParser object\n$!";
+		return undef;
+	} else {
+		read HTML, $_, -s HTML;
+		close HTML;
+	}
+
+	# Remove commented out elements
+	s/\Q<!--\E\s*<TEMPLATE\E/<TEMPLATE/sig;
+	s/<\s*\/\s*TEMPLATE(ITEM|BLOCK)\s*>\s*-->/<\/TEMPLATE$1>/sig;
+
+	my $p = HTML::TokeParser->new( \$_ ) or warn "Can't create TokeParser object from string\n $!" and return undef;
 
 	# Cycle through all tokens in the HTML template file
 	while (my $token = $p->get_token) {
-
-		# Insert an HTML TITLE
+	# Insert an HTML TITLE
 		if ( @$token[0] eq 'S' and @$token[1] eq 'title' ){
 			$htmltitle = 1;
 			$self->{FULL_TEMPLATE}	.= "<TITLE>" if $method eq "fill";
@@ -290,7 +335,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			$htmltitle = 0;
 			$self->{FULL_TEMPLATE}	.= "</TITLE>" if $method eq "fill";
 		}
-		elsif ( @$token[0] eq 'T' and $htmltitle>0 ){
+		elsif ( $htmltitle>0 and @$token[0] eq 'T' ){
 			if ($method eq 'collect'){
 				$self->{HTML_TITLE} .= @$token[1];
 			} elsif ($method eq 'fill' and not exists $self->{HTML_TITLE}) {
@@ -304,7 +349,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			}
 		}
 
-		# A TEMPLATEBLOCK
+		# A TEMPLATEBLOCK to fill
 		elsif (@$token[1] eq 'templateblock' and @$token[0] eq 'S' and $method eq 'fill'){
 			$tbopen = 1;
 			if (exists @$token[2]->{name}) { $tbname=@$token[2]->{name} }
@@ -324,7 +369,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			$self->{FULL_TEMPLATE} .= @$token[4];
 			$tbblock = @$token[4];
 
-		# End of a TEMPLATEBLOCK
+		# End of a TEMPLATEBLOCK to fill
 		} elsif (@$token[1] eq 'templateblock' and @$token[0] eq 'E' and defined $tbblock and $method eq 'fill'){
 			$tbblock .= @$token[2];
 			$self->{FULL_TEMPLATE} .= @$token[2];
@@ -341,8 +386,8 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 		) {
 			$substitute = 1;								# set flag for this loop to ignore elements
 			$name = "";										# Reset this var incase TEMPLATEITEM illegally misses req. attribute
+			# Allow name or id attributes
 			if (exists @$token[2]->{name}){$name=@$token[2]->{name} }else{ $name=@$token[2]->{id} }
-
 			# If in a replicate block when completing a template
 			if (defined $tbblock){ $tbblock .= @$token[4] }
 			# If completing a template:
@@ -350,13 +395,13 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 				$self->{FULL_TEMPLATE} .= @$token[4]		# Replace the full template tag
 					if not exists $self->{NO_TAGS};			# if we're asked to
 				# Add the content at this point
-				$self->{FULL_TEMPLATE} .= "\n$usrvals{$name}" if exists $usrvals{$name};	# Insert into template
+				$self->{FULL_TEMPLATE} .= "$usrvals{$name}" if exists $usrvals{$name};	# Insert into template
 			}
 		}
 
 		# End of a template item
 		elsif ( (@$token[1] eq 'templateitem') and (@$token[0] eq 'E') ) {
-			$self->{FULL_TEMPLATE} .= "\n".@$token[2]		# Replace the template tag
+			$self->{FULL_TEMPLATE} .= @$token[2]			# Replace the template tag
 				if $method eq "fill"
 				and not exists $self->{NO_TAGS};			# if we're asked to
 			$tbblock .= @$token[2];
@@ -369,10 +414,10 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			my $literal="";
 			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
 			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
-			elsif (@$token[0] eq 'C') { $literal = '<!--'.@$token[1].'-->'; }
-			elsif (@$token[0] eq 'D') { $literal = '<!'.@$token[1].'>'; }
-			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'?>'; }
-			else                      { $literal = @$token[1]; }
+			elsif (@$token[0] eq 'D') { $literal = @$token[1]; }
+			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'>'; }
+			elsif (@$token[0] eq 'C') { $literal = @$token[1]; }
+			else                      { $literal = @$token[1];}
 			if (defined $tbblock){
 				$tbblock .= $literal;	# Complete the template
 			}
@@ -383,11 +428,12 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 		elsif ($method eq 'collect' and $substitute){
 		# Remember filling of templateitem node is done on encountering opening of tempalteitem element, above
 			my $literal = "";
-			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
-			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
-			elsif (@$token[0] eq 'C') { $literal = '<!--'.@$token[1].'-->'; }
-			elsif (@$token[0] eq 'D') { $literal = '<!'.@$token[1].'>'; }
-			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'?>'; }
+			if    (@$token[0] eq 'S') { $literal = @$token[4] }
+			elsif (@$token[0] eq 'E') { $literal = @$token[2] }
+			elsif (@$token[0] eq 'D') { $literal = @$token[1] 	}
+			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'>' 	}
+			elsif (@$token[0] eq 'C') { $literal = @$token[1]	}
+			else  { 					$literal = @$token[1] }
 			$self->{TEMPLATEITEMS}->{$name} .= $literal;# Store the template's element name and default value
 		}# End if
 	} # Whend
@@ -397,9 +443,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 
 	# Second parse, this time of the FULL_TEMPLATE created above,  to insert TEMPLATEBLOCKs %tbblocks
 	if ($method eq 'fill'){
-		my $tempdoc		= "";
-		my $tbname		= "";
-		my $tbvalign	= "";
+		my ($tempdoc,$tbname,$tbvalign) = ('','','');
 
 		$p = HTML::TokeParser->new( \$self->{FULL_TEMPLATE} )
 			or warn "Can't create TokeParser object on second parse!\n $!" and return undef;
@@ -420,26 +464,28 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 						$tbvalign = "below" if $tbvalign eq 'bottom';
 						$tbvalign = "above" if $tbvalign eq 'top';
 					}
-				} else {
-					$tbvalign = "above";
-				}
-				$tempdoc .= $tbblocks{ $tbname }  if $tbvalign eq 'above';
+				} else { $tbvalign = "above" }
+				# Add content ABOVE
+				$tempdoc .= '<!--'.$tbblocks{$tbname}.'-->'  if $tbvalign eq 'above';
 			}
 
 			my $literal="";
 			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
 			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
-			elsif (@$token[0] eq 'C') { $literal = '<!--'.@$token[1].'-->'; }
-			elsif (@$token[0] eq 'D') { $literal = '<!'.@$token[1].'>'; }
-			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'?>'; }
+			elsif (@$token[0] eq 'D') { $literal = @$token[1]; }
+			elsif (@$token[0] eq 'PI'){ $literal = '<?'.@$token[1].'>'; }
+			elsif (@$token[0] eq 'C') { $literal = @$token[1]; }
+			else  {$literal = @$token[1]}
+
 
 			# Complete the template
 			$tempdoc .= $literal if not (@$token[1] =~ /^template(item|block)$/ and exists $self->{NO_TAGS});
 
 			# The end of a TEMPLATEBLOCK
 
+			# Add content BELOW
 			if (@$token[1] eq 'templateblock' and @$token[0] eq 'E' and defined $tbvalign and $tbvalign ne 'above'){
-				$tempdoc .= $tbblocks{ $tbname };
+				$tempdoc .= '<!--'.$tbblocks{$tbname}.'-->';
 			}
 
 		} # Whend
