@@ -8,51 +8,58 @@ use warnings;
 
 =head1 NAME
 
-EasyTemplate - simple tag-based HTML templates, guestbooks and 'latest news' pages.
+EasyTemplate - tag-based HTML templates, guestbooks and 'latest news' pages.
 
 =head2 VERSION
 
-Version 0.97 11/05/2001 13:51
+Version 0.98 15/05/2001
 
 =cut
 
-our $VERSION = 0.97;
+our $VERSION = 0.98;
 
 =head1 SYNOPSIS
 
 Example tempalte:
 
-	<HTML><HEAD><TITLE>Test Doc</TITLE></HEAD>
-	<BODY>
-	<H1><TEMPLATEITEM id="articleTitle"></TEMPLATEITEM></H1>
-	<TEMPLATEITEM id="articleText">
-		This text <I>can</I> be over-writen - see the <EM>POD</EM>.
-	</TEMPLATEITEM>
-	</BODY>
-	</HTML>
+	<HTML><HEAD><TITLE>Latest News</TITLE></HEAD><BODY>
+	<H1>Latest News</H1>
+	<TEMPLATEBLOCK valign="above">
+		<H2><TEMPLATEITEM id="1.Headline"></TEMPLATEITEM></H2>
+		<DIV><TEMPLATEITEM id="2.Story"></TEMPLATEITEM></DIV>
+	</TEMPLATEBLOCK>
+	</BODY></HTML>
 
-Example of filling a template with content:
+Example of filling and collecting:
 
-	use EasyTemplate;
-	my $TEMPLATE = new HTML::EasyTemplate($page) or die "Couldn't make template!";
-	$TEMPLATE -> process('fill', {
-		'menu'=>$m->{HTML},
-	} );
-	$TEMPLATE -> save( $page );
-	warn "Saved the new document as <$TEMPLATE->{ARTICLE_PATH}>\n";
-	__END__
+	use HTML::EasyTemplate;
 
-Example of collecting from a template with content:
+	my $TEMPLATE = new HTML::EasyTemplate("E:/www/leegoddard_com/latest.html",
+		{	NO_TAGS => 1,
+			ARTICLE_ROOT => 'E:/www/leegoddard_com',
+			URL_ROOT => 'http://localhost/leegoddard_com',
+		});
 
-	use EasyTemplate;
-	my $TEMPLATE = new EasyTemplate('test_template.html');
+	# Collect eh values
 	$TEMPLATE -> process('collect');
+
+	# Do something with them
 	my %template_items = %{$TEMPLATE->{TEMPLATEITEMS}};
-	foreach (keys %template_items){
-		print "ID=$_\nCONTENT=$template_items{$_}\n\n";
-	}
-	print "Template doc's title was: $TEMPLATE->title\n";
-	__END__
+	foreach (keys %template_items){ warn "ID=$_\nCONTENT=$template_items{$_}\n\n" }
+	warn "Template doc's title was: ",$TEMPLATE->title,"\n";
+
+		# Make new values, for example:
+		$template_items{'1.Headline'} 	= "News in paper";
+		$template_items{'2.Story'}	= "Reports are coming in of a newspaper carrying a news item.";
+
+	# Add them to the page
+	$TEMPLATE -> process('fill', \%template_items );
+	$TEMPLATE -> save;
+	warn "Specified no filename, so new document saved as (",$TEMPLATE->{ARTICLE_PATH},")\n";
+
+	exit;
+
+See also the I<EXAMPLE: NEWS PAGE / GUESTBOOK>, below.
 
 =head1 DEPENDENCIES
 
@@ -75,14 +82,13 @@ A template may also include C<TEMPLATEBLOCK> elements.  Any elements, including 
 	------------------------------------------------------------------------------------------------
 	TEMPLATE_ITEM                Editable region - all contents may be easily collected/replaced.
 	                id           Unique identifier.
-	                name         An alternative id.
+	                name         Synonymn for id.
 	------------------------------------------------------------------------------------------------
-	TEMPLATEBLOCK               All contents will be replicated before the original block is filled.
+	TEMPLATEBLOCK                All contents will be replicated before the original block is filled.
 	                id           Unique identifier.
-	                name         An alternative id.
-                    valign       Maybe 'C<above>' or 'C<below>' to indicate
-                                 where the repliacted block should appear
-                                 in relation to the original.
+	                name         Synonymn for id.
+                    valign       Either 'C<above>' or 'C<below>' to indicate where the repliacted
+                                 block should appear in relation to the original.
 	------------------------------------------------------------------------------------------------
 
 =head1 PUBLIC METHODS
@@ -111,13 +117,13 @@ If this is not set by the user, it is sought in the C<main::> namespace.
 
 If this item evaluates to true, the template will not contain C<TEMPLATEITEM> tags when saved.  Defaults is to leave them in, so that the page may again function as an C<EasyTemplate>.
 
-=item C<FULL_TEMPLATE>
-
-This slot will contain the filled template once the C<process/fill> method has been called.  See also the C<save> method.
-
 =item C<HTML_TITLE>
 
 See the C<title> method below.
+
+=item C<FULL_TEMPLATE>
+
+This slot will contain the filled template once the C<process/fill> method has been called.  See also the C<save> method.
 
 =back
 
@@ -156,15 +162,11 @@ sub new { my ($class, $filepath) = (shift,shift);
 
 =head2 METHOD title
 
-Sets C<$TEMPLATE->{HTML_TITLE}>, which is
-the HTML title to be substituted in the template.
-
-Accepts: scalar.
-Returns: the value set.
+Sets and/or returns C<$TEMPLATE->{HTML_TITLE}>, which is the HTML title to be substituted and/or found in the template.
 
 =cut
 
-sub title { $_[0]->{HTML_TITLE} = $_[1] }
+sub title { defined $_[1] ? return $_[0]->{HTML_TITLE} = $_[1] : return $_[0]->{HTML_TITLE} }
 
 
 
@@ -176,11 +178,11 @@ Accepts:
 
 =over 4
 
-=item *
+=item 1.
 
 directory in which to save article in, or full path to save article as;
 
-=item *
+=item 2.
 
 optionally a filename to save as.
 
@@ -239,7 +241,7 @@ Fill a template or take variables from a template.
 
 Uses C<HTML::TokeParser> to iterate through template,replacing all text tagged with C<TEMPLATEITEM id="x"> with the value of I<x> being the keys of the third argument. So if that parser module can't read it, neither can this module.
 
-Accepts, in this order:
+Accepts:
 
 =over 4
 
@@ -272,7 +274,7 @@ Returns either C<$self->{FULL_TEMPLATE}> or C<$self->{TEMPLATEITEMS}>, depending
 sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 	warn "Template values not a hash reference!\n Usage: \$self->process(\$method,\$ref_to_hash)" and return undef if defined $usrvals and ref $usrvals ne 'HASH';
 	warn "No 'method' supplied!\n Usage: \$self->process(\$method,\$ref_to_hash)." and return undef if not defined $method;
-	my $p = HTML::TokeParser->new( $self->{SOURCE_PATH} ) or warn "Can't create TokeParser object!\n $!" and return undef;
+	my $p = HTML::TokeParser->new( $self->{SOURCE_PATH} ) or warn "Can't create TokeParser object from $self->{SOURCE_PATH}!\n $!" and return undef;
 	my %usrvals; %usrvals = %$usrvals if defined $usrvals;
 	my ($tbname,$name) = "";	# The 'name' or 'id'  attributes from TEMPLATEITEM/TEMPLATEBLOCK elements, cf. $usrvals{$name}
 	my $substitute = 0;		# Flag set when ignoring elements nested within a TEMPLATEITEM element
@@ -284,6 +286,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 
 	# Cycle through all tokens in the HTML template file
 	while (my $token = $p->get_token) {
+
 		# Insert an HTML TITLE
 		if ( @$token[0] eq 'S' and @$token[1] eq 'title' ){
 			$htmltitle = 1;
@@ -326,9 +329,9 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 
 			$self->{FULL_TEMPLATE} .= @$token[4];
 			$tbblock = @$token[4];
-		# End of a TEMPLATEBLOCK
 
-		} elsif (@$token[1] eq 'templateblock' and @$token[0] eq 'E' and defined $tbblock){
+		# End of a TEMPLATEBLOCK
+		} elsif (@$token[1] eq 'templateblock' and @$token[0] eq 'E' and defined $tbblock and $method eq 'fill'){
 			$tbblock .= @$token[2];
 			$self->{FULL_TEMPLATE} .= @$token[2];
 			$tbblocks{$tbname} = $tbblock,
@@ -390,8 +393,8 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 		}# End if
 	} # Whend
 
-	die "TEMPLATEITEM '$name' not closed!" if defined $name and $name ne '';
-	die "TEMPLATEBLOCK '$tbname' not closed!" if defined $tbopen;
+	die "Fatal error in template: TEMPLATEITEM '$name' not closed " if defined $name and $name ne '';
+	die "Fatal error in template: TEMPLATEBLOCK '$tbname' not closed " if defined $tbopen;
 
 	# Second parse, this time of the FULL_TEMPLATE created above,  to insert TEMPLATEBLOCKs %tbblocks
 	if ($method eq 'fill'){
@@ -411,23 +414,30 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 				elsif (exists @$token[2]->{id}){ $tbname=@$token[2]->{id} }
 				else  {$tbname++}
 				if (exists @$token[2]->{valign}) {
-					if (@$token[2]->{valign} !~ /^\s*(above|below)\s*$/i){
+					if (@$token[2]->{valign} !~ /^\s*(top|bottom|above|below)\s*$/i){
 						$tbvalign = "above";
-					} else { $tbvalign = lc @$token[2]->{valign}; }
+					} else {
+						$tbvalign = lc @$token[2]->{valign};
+						$tbvalign = "below" if $tbvalign eq 'bottom';
+						$tbvalign = "above" if $tbvalign eq 'top';
+					}
 				} else {
 					$tbvalign = "above";
 				}
-				if ($tbvalign eq 'above'){ $tempdoc .= $tbblocks{ $tbname } }
+				$tempdoc .= $tbblocks{ $tbname }  if $tbvalign eq 'above';
 			}
 
 			my $literal="";
 			if    (@$token[0] eq 'S') { $literal = @$token[4]; }
 			elsif (@$token[0] eq 'E') { $literal = @$token[2]; }
 			else                      { $literal = @$token[1]; }
-			$tempdoc .= $literal;	# Complete the template
+
+			# Complete the template
+			$tempdoc .= $literal if not (@$token[1] =~ /^template(item|block)$/ and exists $self->{NO_TAGS});
 
 			# The end of a TEMPLATEBLOCK
-			if (@$token[1] eq 'templateblock' and @$token[0] eq 'E' and $tbvalign ne 'above'){
+
+			if (@$token[1] eq 'templateblock' and @$token[0] eq 'E' and defined $tbvalign and $tbvalign ne 'above'){
 				$tempdoc .= $tbblocks{ $tbname };
 			}
 
@@ -485,22 +495,68 @@ sub set_article_url { my ($self, $path) = (shift,shift);
 
 1; # Return a true value for 'use'
 
+=head1 EXAMPLE: NEWS PAGE / GUESTBOOK
+
+Three files can be used to produce a guestbook-like news page.  One file is an HTML file that takes form input, which is fed to a script that calls this module, that updates a further HTML page.  The form field C<name>s in the HTML form page are the same as the C<TEMPLATEITEM id>s in the updated/template page.
+
+=item File One,
+
+the viewable template, known as F<E:/www/leegoddard_com/latest.html> in the second file:
+
+	<HTML><HEAD><TITLE>Latest News</TITLE></HEAD><BODY>
+	<H1>Latest News</H1>
+	<TEMPLATEBLOCK valign="above">
+		<H2><TEMPLATEITEM id="1.Headline"></TEMPLATEITEM></H2>
+		<DIV><TEMPLATEITEM id="2.Story"></TEMPLATEITEM></DIV>
+	</TEMPLATEBLOCK>
+	</BODY></HTML>
+
+=item File Two,
+
+perl script to do the business, in the first file called as F<http://localhost/cgi-bin/latestnews.pl>:
+
+	use HTML::EasyTemplate;
+	use CGI;
+	$QUERY = new CGI;
+	$TEMPLATE = new HTML::EasyTemplate("E:/www/leegoddard_com/latest.html",
+		{	NO_TAGS => 1,
+			ARTICLE_ROOT => 'E:/www/leegoddard_com',
+			URL_ROOT => 'http://localhost/leegoddard_com',
+		});
+	if ($QUERY->param){
+		foreach ($QUERY->param) {
+			$template_items{$_} = join(', ',($QUERY->param($_)));
+		}
+		# Add them to the page
+		$TEMPLATE -> process('fill', \%template_items );
+		$TEMPLATE -> save( "$TEMPLATE->{ARTICLE_ROOT}/latest.html" );
+	}
+	print "Location:$TEMPLATE->{ARTICLE_URL}\n\n";
+	exit;
+	__END__
+
+=item File Three,
+
+the HTML form to add news items to the template; never referenced by other files:
+
+	<HTML><HEAD><TITLE>Add a headline</TITLE></HEAD><BODY>
+	<H1>Add a headline<HR></H1>
+	<FORM action="http://localhost/cgi-bin/latestnews.pl" method="post">
+		<H2>Headline</H2><INPUT type='text' name="1.Headline" size='60'></H2>
+		<H3>Story</H3><TEXTAREA name="2.Story" COLS="40"  ROWS="5"  WRAP="HARD" size='60'></TEXTAREA>
+		<HR><INPUT type="submit">
+	</FORM></BODY></HTML>
+
+
 =head1 SEE ALSO
 
 	HTML::TokeParser
 	HTML::EasyTemplate::DirMenu
 	HTML::EasyTemplate::PageMenu
 
-=head1 HISTORY
+=head1 KEYWORDS
 
-=item 0.96
-
-Removed our checks on input file/string to allow HTML::TokeParser to sort it out;
-reversed wrong C<NO_TAGS> behaviour; removed some limiting defaults.
-
-=item 0.95
-
-Allow use of C<id> in addition to C<name> as the C>TEMPLATEITEM> unique identifier attribute.
+	Template, guestbook, news page, CGI, HTML, update, easy.
 
 =head1 AUTHOR
 
