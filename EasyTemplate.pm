@@ -3,21 +3,25 @@
 
 package HTML::EasyTemplate;
 use HTML::TokeParser 2.19;
-use Cwd;
 use strict;
+use Fcntl ':flock'; # import LOCK_* constants
+use warnings;
 
 # use Data::Dumper;
 
 =head1 NAME
 
-EasyTemplate - tag-based HTML templates, guestbooks and 'latest news' pages.
+HTML::EasyTemplate - tag-based HTML templates
 
 =cut
 
-our $VERSION = 0.985;	# Changed save method
+our $VERSION = 0.986;	# Changed save method
 
 =head2 VERSION
 
+Version 0.986 (26/07/2001) Flocks and unflocks files.
+	If your version of perl does't support C<flock>, you must not
+	call the constructor with a C<FLOCK>  argument.
 Version 0.985 (23/07/2001) cleans up API: constructor method
 	 now takes SOURCE_PATH explicitly and not as arg outside of hash.
 Version 0.984 (15/06/2001) adds option to hide template items.
@@ -80,8 +84,8 @@ See also the I<EXAMPLE: NEWS PAGE / GUESTBOOK>, below.
 
 =head1 DEPENDENCIES
 
-	Cwd;
 	HTML::TokeParser;
+	Fcntl;
 	strict;
 	warnings;
 
@@ -121,7 +125,12 @@ a hash or reference to a hash that contains paramters of name/value pairs as fol
 
 =item C<SOURCE_PATH>
 
-scalar representing the path at which the source of the template is to be found,
+Scalar representing the path at which the source of the template is to be found,
+
+=item C<FLOCK>
+
+If set, will do a C<FLOCK LOCK_EX> on any read file, and only C<FLOCK LOCK_UN> when it is saved.
+If your system cannot handle C<flock>, do not use this setting.
 
 =item C<ARTICLE_ROOT>
 
@@ -238,7 +247,7 @@ DEVELOPMENT NOTE: it may be an idea to bear in mind temporary renaming of files:
 =cut
 
 sub save { my ($self, $save_dir, $file_name) = (shift,shift,shift);
-	warn "Method EasyTemplate::save requires at least a directory or filepath as a parameter."
+	warn "Method HTML::EasyTemplate::save requires at least a directory or filepath as a parameter."
 		and return undef unless defined $save_dir or defined $self->{SOURCE_PATH};
 	local *OUTPUT;
 
@@ -251,9 +260,10 @@ sub save { my ($self, $save_dir, $file_name) = (shift,shift,shift);
 		$self->set_article_path($save_dir);
 	}
 
-	open OUTPUT, ">$self->{ARTICLE_PATH}" or warn "EasyTemplate::save could not open $self->{ARTICLE_PATH} for writing:\nperl said '$!'" and return undef;
+	open OUTPUT, ">$self->{ARTICLE_PATH}" or warn "HTML::EasyTemplate::save could not open $self->{ARTICLE_PATH} for writing:\nperl said '$!'" and return undef;
 		print OUTPUT $self->{FULL_TEMPLATE};
 	close OUTPUT;
+	file_unlock(*OUTPUT) if exists $self->{FLOCK};
 
 	$self -> set_article_url;
 	return $self->{ARTICLE_PATH};
@@ -314,6 +324,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 		warn "Couldn't open file <$self->{SOURCE_PATH}> to create TokeParser object\n$!";
 		return undef;
 	} else {
+		file_lock(*HTML) if exists $self->{FLOCK};
 		read HTML, $_, -s HTML;
 		close HTML;
 	}
@@ -539,6 +550,29 @@ sub set_article_url { my ($self, $path) = (shift,shift);
 	return $self->{ARTICLE_URL};
 }
 
+
+
+
+#
+# file_lock: accepts glob ref
+#
+sub file_lock { my $glob = shift;
+	if (!ref($glob) && ref(\$glob) ne "GLOB") {
+		die "file_lock requires a glob";
+	}
+	no strict 'subs';
+	flock $glob,LOCK_EX;
+	use strict;
+}
+
+sub file_unlock { my $glob = shift;
+	if (!ref($glob) && ref(\$glob) ne "GLOB") {
+		die "file_unlock requires a glob";
+	}
+	no strict 'subs';
+	flock $glob,LOCK_UN;
+	use strict;
+}
 
 
 1; # Return a true value for 'use'

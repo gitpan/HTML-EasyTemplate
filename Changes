@@ -1,5 +1,8 @@
 Revision history for Perl extension HTML::EasyTemplate.
 
+0.986  Thu Jul 26 12:37:06 2001
+	- added 'flock' features
+
 0.985  Tue July 24 09:00:00 2001
 	- updated docs;
 	- updated constructor API (cf. SOURCE_PATH now explictly required)

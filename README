@@ -1,0 +1,39 @@
+HTML/EasyTemplate version Version 0.985
+=======================================
+
+    Quick and easy HTML templates.
+
+    Insert data at points in HTML docs marked with
+    <TEMPLATEITEM> and <TEMPLATEBLOCK>.
+
+
+INSTALLATION
+
+	To install this module, do the usual:
+
+	   perl Makefile.PL
+	   make					- nmake on Win32
+	   make test			- etc
+	   make install
+
+	Then please read the POD.
+
+DEPENDENCIES
+
+	As well as the pragmas 'strict' and 'warnings', this module
+	requires
+
+		HTML::TokeParser 2.19
+		Fcntl
+
+
+AUTHOR
+
+	Lee Goddard - lgoddard@cpan.org
+
+COPYRIGHT AND LICENCE
+
+	This module and all associated code is Copyright (C) Lee Goddard 2001.
+	All rights reserved.
+
+	This is free software and may be used under the same terms as Perl itself.
