@@ -11,11 +11,11 @@ TemplateEasy
 
 =head2 VERSION
 
-Version 0.91
+Version 0.92 22/04/2001 15:41
 
 =cut
 
-our $VERSION = 0.9;
+our $VERSION = 0.92;
 
 =head1 DESCRIPTION
 
@@ -48,6 +48,7 @@ Example of filling a template with content:
 		'articleText' => 'This is boring sample text: hello world...',
 	);
 	my $TEMPLATE = new EasyTemplate('test_template.html');
+	$TEMPLATE->title("Latka Lover");
 	$TEMPLATE -> process('fill',\%items);
 	$TEMPLATE -> save( '.','new.html');
 	print "Saved the new document as <$TEMPLATE->{ARTICLE_PATH}>\n";
@@ -62,6 +63,7 @@ Example of collecting from a template with content:
 	foreach (keys %template_items){
 		print "NAME=$_\nCONTENT=$template_items{$_}\n\n";
 	}
+	print "HTML doc's title was: $TEMPLATE->title\n";
 	__END__
 
 =head1 DEPENDENCIES
@@ -79,13 +81,31 @@ by HTML::TokeParser, and that all empty C<TEMPLATEITEM> elements
 are ignored by this module - if you wish to draw attention to
 them, make sure they contain at least a space character.
 
-=head1 METHODS
+=head1 PUBLIC METHODS
 
-=head2 Constructor &new
+=head2 CONSTRUCTOR METHOD (new)
 
 Accepts references to the new object's class,
 and a scalar representing the path at which the source
 of the new template is to be found.
+
+=over 4
+
+=item C<$self->{NO_TAGS}>
+
+if this slot evaluates to true, the template will not contain
+C<TEMPLATEITEM> tags when saved.
+
+=item C<$self->{HTML_TITLE}>
+
+See the C<title> method below.
+
+=item C<$self->{FULL_TEMPLATE}>
+
+This slot will contain the filled template once the
+C<process/fill> method has been called.  See the C<save> method.
+
+=back
 
 =cut
 
@@ -94,15 +114,16 @@ sub new { my ($class, $filepath) = (shift,shift);
 	local *IN;
 
 	# Instance variables
-	$self->{SOURCEPATH}		= $filepath;	# Path to the template to load
-	$self->{ARTICLE_PATH}	= "";			# Path to the article created from the template instance
-	$self->{ARTICLE_URL}	= "";			# URL  of the article created from the template instance
-	$self->{FULL_TEMPLATE}	= "";			# Contents of template once replacements have been made
+	$self->{SOURCE_PATH}	= $filepath;	# Path to the template to load
+	$self->{ARTICLE_PATH}	= '';			# Path to the article created from the template instance
+	$self->{ARTICLE_URL}	= '';			# URL  of the article created from the template instance
+	$self->{FULL_TEMPLATE}	= '';			# Contents of template once replacements have been made
 	$self->{TEMPLATEITEMS}	= {};			# Hash of template-item names and contents;
-	$self->{HTMLTITLE}		= "";			# The text to insert in the HTML HEAD TITLE element
+	$self->{HTML_TITLE}		= '';			# The text to insert in the HTML HEAD TITLE element
+	$self->{NO_TAGS}		= '';			# Set a value to keep the TEMPLATEITEM tags when filling template
 	# Try to load template
-	if (not -e $self->{SOURCEPATH}) {
-		print "Template file \"$self->{SOURCEPATH}\" not found!  ";
+	if (not -e $self->{SOURCE_PATH}) {
+		print "Template file \"$self->{SOURCE_PATH}\" not found!  ";
 		die;
 	}
 	bless $self,$class;
@@ -111,9 +132,23 @@ sub new { my ($class, $filepath) = (shift,shift);
 
 
 
+=head2 METHOD title
+
+Sets C<$TEMPLATE->{HTML_TITLE}>, which is
+the HTML title to be substituted in the template.
+
+Accepts: scalar.
+Returns: nothing.
+
+=cut
+
+sub title { my ($self,$title) = (shift,shift);
+	$self->{HTML_TITLE} = $title if $title;
+}
 
 
-=head2 &save
+
+=head2 METHOD save
 
 Save the file.  If a path is specified, use it; otherwise or make one up.
 
@@ -173,7 +208,7 @@ sub save { my ($self, $save_dir, $file_name) = (shift,shift,shift);
 
 
 
-=head2 &process
+=head2 METHOD process
 
 Fill a template or take variables from a template.
 
@@ -183,26 +218,22 @@ Accepts, in this order:
 
 =item 1.
 
-reference to Template object;
-
-=item 2.
-
 method of operation: 'C<fill>' or 'C<collect>'.
 
-=item 3.
+=item 2.
 
 if method argument above is set to 'C<fill>', a reference to a hash.
 
 =back
 
-If the second argument is set to 'C<collect>', the values of all C<TEMPLATEITEM>
+If the first argument is set to 'C<collect>', the values of all C<TEMPLATEITEM>
 elements will be collected into the instance variable C<%TEMPLATEITEMS>, with
 the C<name> attribute of the element forms the key of the hash.
 
-If the second argument is set to 'C<fill>', the template will be filled with values
+If the first argument is set to 'C<fill>', the template will be filled with values
 stored in the hash refered to in the third argument.
 
-The third parameter, if present, should refer to a hash whose keys
+The second parameter, if present, should refer to a hash whose keys
 are C<TEMPLATEITEM> element C<name> attributes, and values are the element's contents.
 
 Uses C<HTML::TokeParser> to iterate through template,replacing all text tagged with
@@ -223,7 +254,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 	my %usrvals = %$usrvals;
 	my $name = "";			# The 'name' attribute from TEMPLATEITEM elements, cf. $usrvals{$name}
 	my $substitute = 0;		# Flag set when ignoring elements nested within a TEMPLATEITEM element
-	my $p = HTML::TokeParser->new( $self->{SOURCEPATH} ) or print "Can't create TokeParser object!\n $!" and die;
+	my $p = HTML::TokeParser->new( $self->{SOURCE_PATH} ) or print "Can't create TokeParser object!\n $!" and die;
 	my $htmltitle = 0;		# Flags when inside HTML TITLE element
 
 	# Cycle through all tokens in the HTML template file
@@ -238,8 +269,14 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			$self->{FULL_TEMPLATE}	.= "</TITLE>" if $method eq "fill";
 		}
 		elsif ( @$token[0] eq 'T' and $htmltitle>0 ){
-			$self->{FULL_TEMPLATE}	.= @$token[1] if $method eq "fill";	# Replace the template tag
-			$self->{HTMLTITLE}		.= @$token[1] if $method eq 'collect';
+			if ($method eq 'collect'){
+				$self->{HTML_TITLE} .= @$token[1];
+			} elsif ($method eq 'fill' and $self->{HTML_TITLE} eq '') {
+				$self->{FULL_TEMPLATE} .= @$token[1];					# Retain the text from HTML TITLE element
+			} elsif ($method eq 'fill' and $self->{HTML_TITLE} ne '') {
+				$self->{FULL_TEMPLATE} .= $self->{HTML_TITLE} 			# Substitute our text
+					if $self->{FULL_TEMPLATE} !~ /$self->{HTML_TITLE}$/;	# if not already done so
+			}
 		}
 
 		# Found the start of a template item?
@@ -248,14 +285,17 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 			$name = "";						# Reset this var incase the TEMPLATEITEM illegally misses it's req. attribute
 			$name = @$token[2]->{name};		# Get the 'name' attribute in either case, into $name
 			if ($method eq 'fill'){							# If completing a template:
-				$self->{FULL_TEMPLATE} .= @$token[4];		# Replace the full template tag
+				$self->{FULL_TEMPLATE} .= @$token[4]		# Replace the full template tag
+					if $self->{NO_TAGS};					# if we're asked to
 				$self->{FULL_TEMPLATE} .= "\n$usrvals{$name}" if exists $usrvals{$name};	# Insert into template
 			}
 		}
 
 		# End of a template time
 		elsif ( (@$token[1] eq 'templateitem') and (@$token[0] eq 'E') ) {
-			$self->{FULL_TEMPLATE} .= "</TEMPLATEITEM>" if $method eq "fill";	# Replace the template tag
+			$self->{FULL_TEMPLATE} .= "</TEMPLATEITEM>"
+				if $method eq "fill" 						# Replace the template tag
+				and $self->{NO_TAGS};						# if we're asked to
 			$substitute = 0;		# Reset flag for this loop to stop ignoring elements
 		}
 
@@ -290,7 +330,7 @@ sub process { my ($self, $method, $usrvals) = (shift,shift,shift);
 
 
 
-=head2 &set_article_path
+=head2 METHOD set_article_path
 
 Accepts and returns one scalar, the path to use for the object's C<ARTICLE_PATH> slot.
 
@@ -301,9 +341,18 @@ sub set_article_path { my ($self, $path) = (shift,shift);
 }
 
 
-=head2 &set_article_url
+=head2 METHOD set_article_url
 
-Acceptsand returns one scalar, C<ARTICLE_URL> slot.
+Acceptsand returns one scalar, the C<ARTICLE_URL> slot.
+
+If C<$main::ARTICLE_ROOT> is set, strips this from the
+path supplied,.
+
+If C<$main::URI_ROOT> is set, prepends this to the
+path supplied.
+
+Mainly for the author's private use in other packages
+that may later appear on CPAN.
 
 =cut
 
@@ -311,9 +360,9 @@ sub set_article_url { my ($self, $path) = (shift,shift);
 	if (not $path and $self->{ARTICLE_PATH}){
 		$path = $self->{ARTICLE_PATH};
 	}
-	$path =~ /^($main::ARTICLE_ROOT)(.*)$/ if defined $main::ARTICLE_ROOT;
+	$path =~ s/^($main::ARTICLE_ROOT)// if defined $main::ARTICLE_ROOT;
 	if ($main::ARTICLE_ROOT){
-		$self->{ARTICLE_URL} = $main::URL_ROOT.$2;
+		$self->{ARTICLE_URL} = $main::URL_ROOT.$2 if $main::URI_ROOT;
 	} else {
 		$self->{ARTICLE_URL} = $2;
 	}
