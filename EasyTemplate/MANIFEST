@@ -1,6 +1,6 @@
 Changes
 DirMenu.pm
-DirMenu.xs
+EasyTemplate.pm
 Makefile.PL
 MANIFEST
 test.pl

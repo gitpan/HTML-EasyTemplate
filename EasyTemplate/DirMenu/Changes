@@ -1,9 +1,0 @@
-Revision history for Perl extension HTML::EasyTemplate::DirMenu.
-
-0.02  Mon Apr 24 05:16:00 2001
-	- updates to methods; composition
-
-0.01  Mon Apr 23 20:44:20 2001
-	- original version; created by h2xs 1.20 with options
-		-cfn HTML::EasyTemplate::DirMenu
-
